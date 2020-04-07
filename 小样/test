@@ -1,0 +1,6 @@
+>>> for param in model.parameters():
+>>>     print(type(param.data), param.size())
+<class 'torch.FloatTensor'> (20L,)
+<class 'torch.FloatTensor'> (20L, 1L, 5L, 5L)
+
+pretrained_dict =  {k: v for k, v in pretrained_dict.items() if k in model_dict}
