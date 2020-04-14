@@ -1,5 +1,8 @@
+
+import collections
 import numpy as np
 import struct
+from torch.utils.data.dataset import Dataset
 import matplotlib.pyplot as plt
 # 训练集文件
 #train_images_idx3_ubyte_file = '/MNIST/train-images-idx3-ubyte'
@@ -7,9 +10,9 @@ import matplotlib.pyplot as plt
 #train_labels_idx1_ubyte_file = 'MNIST/train-labels-idx1-ubyte'
 
 # 训练集文件
-train_images_idx3_ubyte_file = 'D:/code/Python/jupyter notebook/torch_learn/MNIST/train-images-idx3-ubyte'
+train_images_idx3_ubyte_file = './data/mnist/train-images-idx3-ubyte'
 # 训练集标签文件
-train_labels_idx1_ubyte_file = 'D:/code/Python/jupyter notebook/torch_learn/MNIST/train-labels-idx1-ubyte'
+train_labels_idx1_ubyte_file = './data/mnist/train-labels-idx1-ubyte'
 
 def decode_idx3_ubyte(idx3_ubyte_file):
     """
@@ -109,16 +112,63 @@ def load_train_labels(idx_ubyte_file=train_labels_idx1_ubyte_file):
     :return: n*1维np.array对象，n为图片数量
     """
     return decode_idx1_ubyte(idx_ubyte_file)
-###########################################################
-if __name__== '__main()__':
-    train_images = load_train_images()
-    train_labels = load_train_labels()
-    # test_images = load_test_images()
-    # test_labels = load_test_labels()
 
-    # 查看前十个数据及其标签以读取是否正确
+
+def generate_avg_noise(labels,noise_rate,class_num,sum_per_class):
+    """
+    noise_rate分到每一类的概率
+    """
+    per_class_num=np.eye(class_num)
+    rate_per_class=noise_rate/(class_num-1)
     for i in range(10):
-        print(train_labels[i])
-        plt.imshow(train_images[i], cmap='gray')
-        plt.pause(0.000001)
-        plt.show()
+        per_class_num[i,]=int(rate_per_class*sum_per_class[i])
+        per_class_num[i,i]=sum_per_class[i]-(class_num-1)*per_class_num[i,i]
+    for i in range(len(labels)):
+        for j in range(10):
+            if per_class_num[int(labels[i])][j]>=0:
+                if labels[i]==0:
+                    labels[i]=9.0
+                else:
+                    labels[i]=labels[i]-1
+                per_class_num[int(labels[i])][j]-=1
+                break
+    return labels
+def generate_one_noise(labels,noise_rate,class_num,sum_per_class):
+    """
+    noise_rate 标签变为前一类的标签(第一类变为最后一类)
+    """
+    noise_sum=np.zeros([class_num])
+    for i in range(class_num):
+        noise_sum[i]=int(noise_rate*sum_per_class[i])
+    print(noise_sum[int(5.0)])
+    for i in range(len(labels)):
+#         print(labels[i])
+        if noise_sum[int(labels[i])]>=0:
+            # print('=============')
+            # print(labels[i])
+            if labels[i] == 0:
+                labels[i]=9.0
+            else:
+                labels[i]=labels[i]-1
+            print(labels[i])
+        noise_sum[int(labels[i])]-=1
+    return labels
+def generate_noise_label(labels,noise_rate,is_avg=True):
+    """
+    生成噪声标签，按照两种方法：( 1 - noise_rate )  是标签不变的
+        1、is_avg = True noise_rate平均到其他每种类别
+        2、is_avg = False noise_rate 标签变为前一类的标签(第一类变为最后一类)
+    """
+    class_num=10
+    sum_per_class=collections.Counter(labels)
+    if is_avg:
+        return generate_avg_noise(labels,noise_rate,class_num,sum_per_class)
+    else:
+        return generate_one_noise(labels,noise_rate,class_num,sum_per_class)
+
+
+
+train_images = load_train_images()
+train_labels = load_train_labels()
+# test_images = load_test_images()
+# test_labels = load_test_labels()

@@ -6,7 +6,6 @@ import math
 def normal_distribution(x , mean , sigma) :
     return np.exp(-1 * ((x - mean) ** 2) / (2 * (sigma ** 2))) / (math.sqrt(2 * np.pi) * sigma)
 
-
 mean1 , sigma1 = 0 , 1
 x1 = np.linspace(mean1 - 6 * sigma1 , mean1 + 6 * sigma1 , 100)
 

@@ -6,14 +6,18 @@ class Net(nn.Module):
     def __init__(self,features,num_classes=10,init_weights=False,is_bias=True):
         super(Net, self).__init__()
         self.features=features
-        #self.pooling=nn.AvgPool2d() #kernal size ???
+        self.pooling=nn.AvgPool2d(kernel_size=7) #kernal size ???
         self.classifier=nn.Linear(128,num_classes,bias=is_bias)
 
         if init_weights:
             self._initialize_weights()
     def forward(self, x):
         x=self.features(x)
+        x=self.pooling(x)
+        # print("+++++++++++++++++++++++++++++++++++++++++++++++")
+        # print("x before view:",x.shape)
         x=x.view(x.size(0),-1)
+        # print("x after view:" , x.shape)
         #x=self.pooling(x)
         x=self.classifier(x)
         return x
@@ -33,7 +37,7 @@ class Net(nn.Module):
 
 def make_layers(cfg,batch_norm=True,is_bias=True):
     layers=[]
-    in_channels=3
+    in_channels=1   #mnist: 1   other :3
     for v in cfg:
         if v=='M':
             layers+=[nn.MaxPool2d(kernel_size=2,stride=2)]
