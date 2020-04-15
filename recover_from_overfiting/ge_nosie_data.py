@@ -1,84 +1,87 @@
-
 import collections
 import numpy as np
 import struct
 from torch.utils.data.dataset import Dataset
 import matplotlib.pyplot as plt
+
 # 训练集文件
-#train_images_idx3_ubyte_file = '/MNIST/train-images-idx3-ubyte'
+# train_images_idx3_ubyte_file = '/MNIST/train-images-idx3-ubyte'
 # 训练集标签文件
-#train_labels_idx1_ubyte_file = 'MNIST/train-labels-idx1-ubyte'
+# train_labels_idx1_ubyte_file = 'MNIST/train-labels-idx1-ubyte'
 
 # 训练集文件
 train_images_idx3_ubyte_file = './data/mnist/train-images-idx3-ubyte'
 # 训练集标签文件
 train_labels_idx1_ubyte_file = './data/mnist/train-labels-idx1-ubyte'
 
-def decode_idx3_ubyte(idx3_ubyte_file):
+
+def decode_idx3_ubyte(idx3_ubyte_file) :
     """
     解析idx3文件的通用函数
     :param idx3_ubyte_file: idx3文件路径
     :return: 数据集
     """
     # 读取二进制数据
-    bin_data = open(idx3_ubyte_file, 'rb').read()
+    bin_data = open(idx3_ubyte_file , 'rb').read()
 
     # 解析文件头信息，依次为魔数、图片数量、每张图片高、每张图片宽
     offset = 0
-    fmt_header = '>iiii' #因为数据结构中前4行的数据类型都是32位整型，所以采用i格式，但我们需要读取前4行数据，所以需要4个i。我们后面会看到标签集中，只使用2个ii。
-    magic_number, num_images, num_rows, num_cols = struct.unpack_from(fmt_header, bin_data, offset)
-    print('魔数:%d, 图片数量: %d张, 图片大小: %d*%d' % (magic_number, num_images, num_rows, num_cols))
+    fmt_header = '>iiii'  # 因为数据结构中前4行的数据类型都是32位整型，所以采用i格式，但我们需要读取前4行数据，所以需要4个i。我们后面会看到标签集中，只使用2个ii。
+    magic_number , num_images , num_rows , num_cols = struct.unpack_from(fmt_header , bin_data , offset)
+    print('魔数:%d, 图片数量: %d张, 图片大小: %d*%d' % (magic_number , num_images , num_rows , num_cols))
 
     # 解析数据集
     image_size = num_rows * num_cols
-    offset += struct.calcsize(fmt_header)  #获得数据在缓存中的指针位置，从前面介绍的数据结构可以看出，读取了前4行之后，指针位置（即偏移位置offset）指向0016。
+    offset += struct.calcsize(fmt_header)  # 获得数据在缓存中的指针位置，从前面介绍的数据结构可以看出，读取了前4行之后，指针位置（即偏移位置offset）指向0016。
     print(offset)
-    fmt_image = '>' + str(image_size) + 'B'  #图像数据像素值的类型为unsigned char型，对应的format格式为B。这里还有加上图像大小784，是为了读取784个B格式数据，如果没有则只会读取一个值（即一副图像中的一个像素值）
-    print(fmt_image,offset,struct.calcsize(fmt_image))
-    images = np.empty((num_images, num_rows, num_cols))
-    #plt.figure()
-    for i in range(num_images):
-        if (i + 1) % 10000 == 0:
+    fmt_image = '>' + str(
+        image_size) + 'B'  # 图像数据像素值的类型为unsigned char型，对应的format格式为B。这里还有加上图像大小784，是为了读取784个B格式数据，如果没有则只会读取一个值（即一副图像中的一个像素值）
+    print(fmt_image , offset , struct.calcsize(fmt_image))
+    images = np.empty((num_images , num_rows , num_cols))
+    # plt.figure()
+    for i in range(num_images) :
+        if (i + 1) % 10000 == 0 :
             print('已解析 %d' % (i + 1) + '张')
             print(offset)
-        images[i] = np.array(struct.unpack_from(fmt_image, bin_data, offset)).reshape((num_rows, num_cols))
-        #print(images[i])
+        images[i] = np.array(struct.unpack_from(fmt_image , bin_data , offset)).reshape((num_rows , num_cols))
+        # print(images[i])
         offset += struct.calcsize(fmt_image)
-#        plt.imshow(images[i],'gray')
-#        plt.pause(0.00001)
-#        plt.show()
-    #plt.show()
+    #        plt.imshow(images[i],'gray')
+    #        plt.pause(0.00001)
+    #        plt.show()
+    # plt.show()
 
     return images
 
 
-def decode_idx1_ubyte(idx1_ubyte_file):
+def decode_idx1_ubyte(idx1_ubyte_file) :
     """
     解析idx1文件的通用函数
     :param idx1_ubyte_file: idx1文件路径
     :return: 数据集
     """
     # 读取二进制数据
-    bin_data = open(idx1_ubyte_file, 'rb').read()
+    bin_data = open(idx1_ubyte_file , 'rb').read()
 
     # 解析文件头信息，依次为魔数和标签数
     offset = 0
     fmt_header = '>ii'
-    magic_number, num_images = struct.unpack_from(fmt_header, bin_data, offset)
-    print('魔数:%d, 图片数量: %d张' % (magic_number, num_images))
+    magic_number , num_images = struct.unpack_from(fmt_header , bin_data , offset)
+    print('魔数:%d, 图片数量: %d张' % (magic_number , num_images))
 
     # 解析数据集
     offset += struct.calcsize(fmt_header)
     fmt_image = '>B'
     labels = np.empty(num_images)
-    for i in range(num_images):
-        if (i + 1) % 10000 == 0:
-            print ('已解析 %d' % (i + 1) + '张')
-        labels[i] = struct.unpack_from(fmt_image, bin_data, offset)[0]
+    for i in range(num_images) :
+        if (i + 1) % 10000 == 0 :
+            print('已解析 %d' % (i + 1) + '张')
+        labels[i] = struct.unpack_from(fmt_image , bin_data , offset)[0]
         offset += struct.calcsize(fmt_image)
     return labels
 
-def load_train_images(idx_ubyte_file=train_images_idx3_ubyte_file):
+
+def load_train_images(idx_ubyte_file=train_images_idx3_ubyte_file) :
     """
     TRAINING SET IMAGE FILE (train-images-idx3-ubyte):
     [offset] [type]          [value]          [description]
@@ -96,7 +99,9 @@ def load_train_images(idx_ubyte_file=train_images_idx3_ubyte_file):
     :return: n*row*col维np.array对象，n为图片数量
     """
     return decode_idx3_ubyte(idx_ubyte_file)
-def load_train_labels(idx_ubyte_file=train_labels_idx1_ubyte_file):
+
+
+def load_train_labels(idx_ubyte_file=train_labels_idx1_ubyte_file) :
     """
     TRAINING SET LABEL FILE (train-labels-idx1-ubyte):
     [offset] [type]          [value]          [description]
@@ -114,58 +119,61 @@ def load_train_labels(idx_ubyte_file=train_labels_idx1_ubyte_file):
     return decode_idx1_ubyte(idx_ubyte_file)
 
 
-def generate_avg_noise(labels,noise_rate,class_num,sum_per_class):
+def generate_avg_noise(labels , noise_rate , class_num , sum_per_class) :
     """
     noise_rate分到每一类的概率
     """
-    per_class_num=np.eye(class_num)
-    rate_per_class=noise_rate/(class_num-1)
-    for i in range(10):
-        per_class_num[i,]=int(rate_per_class*sum_per_class[i])
-        per_class_num[i,i]=sum_per_class[i]-(class_num-1)*per_class_num[i,i]
-    for i in range(len(labels)):
-        for j in range(10):
-            if per_class_num[int(labels[i])][j]>=0:
-                if labels[i]==0:
-                    labels[i]=9.0
-                else:
-                    labels[i]=labels[i]-1
-                per_class_num[int(labels[i])][j]-=1
+    per_class_num = np.eye(class_num)
+    rate_per_class = noise_rate / (class_num - 1)
+    for i in range(10) :
+        per_class_num[i ,] = int(rate_per_class * sum_per_class[i])
+        per_class_num[i , i] = sum_per_class[i] - (class_num - 1) * per_class_num[i , i]
+    for i in range(len(labels)) :
+        for j in range(10) :
+            if per_class_num[int(labels[i])][j] >= 0 :
+                if labels[i] == 0 :
+                    labels[i] = 9.0
+                else :
+                    labels[i] = labels[i] - 1
+                per_class_num[int(labels[i])][j] -= 1
                 break
     return labels
-def generate_one_noise(labels,noise_rate,class_num,sum_per_class):
+
+
+def generate_one_noise(labels , noise_rate , class_num , sum_per_class) :
     """
     noise_rate 标签变为前一类的标签(第一类变为最后一类)
     """
-    noise_sum=np.zeros([class_num])
-    for i in range(class_num):
-        noise_sum[i]=int(noise_rate*sum_per_class[i])
+    noise_sum = np.zeros([class_num])
+    for i in range(class_num) :
+        noise_sum[i] = int(noise_rate * sum_per_class[i])
     print(noise_sum[int(5.0)])
-    for i in range(len(labels)):
-#         print(labels[i])
-        if noise_sum[int(labels[i])]>=0:
+    for i in range(len(labels)) :
+        #         print(labels[i])
+        if noise_sum[int(labels[i])] >= 0 :
             # print('=============')
             # print(labels[i])
-            if labels[i] == 0:
-                labels[i]=9.0
-            else:
-                labels[i]=labels[i]-1
+            if labels[i] == 0 :
+                labels[i] = 9.0
+            else :
+                labels[i] = labels[i] - 1
             print(labels[i])
-        noise_sum[int(labels[i])]-=1
+        noise_sum[int(labels[i])] -= 1
     return labels
-def generate_noise_label(labels,noise_rate,is_avg=True):
+
+
+def generate_noise_label(labels , noise_rate , is_avg=True) :
     """
     生成噪声标签，按照两种方法：( 1 - noise_rate )  是标签不变的
         1、is_avg = True noise_rate平均到其他每种类别
         2、is_avg = False noise_rate 标签变为前一类的标签(第一类变为最后一类)
     """
-    class_num=10
-    sum_per_class=collections.Counter(labels)
-    if is_avg:
-        return generate_avg_noise(labels,noise_rate,class_num,sum_per_class)
-    else:
-        return generate_one_noise(labels,noise_rate,class_num,sum_per_class)
-
+    class_num = 10
+    sum_per_class = collections.Counter(labels)
+    if is_avg :
+        return generate_avg_noise(labels , noise_rate , class_num , sum_per_class)
+    else :
+        return generate_one_noise(labels , noise_rate , class_num , sum_per_class)
 
 
 train_images = load_train_images()

@@ -16,11 +16,11 @@ from torchvision import datasets
 from torchvision import transforms
 
 from Net import oral_net
-from ge_nosie_data import load_train_images,load_train_labels,generate_noise_label
+from ge_nosie_data import load_train_images , load_train_labels , generate_noise_label
 
 torch.backends.cudnn.enabled = False
 
-os.environ['CUDA_VISIBLE_DEVICES']='1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '2'
 
 # Device
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -29,12 +29,13 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 random_seed = 1
 learning_rate = 1e-3
 num_epochs = 200
-bs = 128         #batch_size
-pool_nb=5#####
-test_bs=32
+bs = 128  # batch_size
+pool_nb = 5  #####
+test_bs = 32
 
 # Architecture
 num_classes = 10
+
 
 def compute_accuracy(model , batch_s , num_classes , data_loader) :  # probas：sofamax输出向量
     correct_pred , num_examples = 0 , 0
@@ -49,8 +50,10 @@ def compute_accuracy(model , batch_s , num_classes , data_loader) :  # probas：
         correct_pred += (predicted == targets).sum()
     return correct_pred.float() / num_examples * 100
 
-def compute_mis(model,data_loader):
-    mis=np.array([[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]])# [target][predicted]
+
+def compute_mis(model , data_loader) :
+    mis = np.array([[0 , 0 , 0 , 0 , 0] , [0 , 0 , 0 , 0 , 0] , [0 , 0 , 0 , 0 , 0] , [0 , 0 , 0 , 0 , 0] ,
+                    [0 , 0 , 0 , 0 , 0]])  # [target][predicted]
     # mis={'one2one':0,'one2two':0,'one2three'}
 
     correct_pred , num_examples = 0 , 0
@@ -62,72 +65,76 @@ def compute_mis(model,data_loader):
         probas = F.softmax(logits , dim=1)
         _ , predicted = torch.max(probas , 1)  # 返回最大值及索引
 
-        predicted=predicted.int()
-        targets=targets.int()
-        #print('=====',targets[0].item())
-        lens=len(targets)
-        for i in range(lens):
+        predicted = predicted.int()
+        targets = targets.int()
+        # print('=====',targets[0].item())
+        lens = len(targets)
+        for i in range(lens) :
             # print('i:',i,'targets[i].item()',targets[i].item(),'predicted[i].item()',predicted[i].item())
-            mis[targets[i].item()][predicted[i].item()]+=1
+            mis[targets[i].item()][predicted[i].item()] += 1
         num_examples += targets.size(0)
         correct_pred += (predicted == targets).sum()
 
     print('Total average acc: %.2f%%' % (correct_pred.float() / num_examples * 100))
-    row,col = mis.shape
-    sum_row=np.sum(mis,axis=1)
+    row , col = mis.shape
+    sum_row = np.sum(mis , axis=1)
     print(sum_row)
     print('===============================')
     print(mis)
-    for ro in range(row):
-        for co in range(col):
-            print(ro,'To',co,':','%5.2f%%'%(mis[ro][co]/sum_row[ro]*100),end='  ')
+    for ro in range(row) :
+        for co in range(col) :
+            print(ro , 'To' , co , ':' , '%5.2f%%' % (mis[ro][co] / sum_row[ro] * 100) , end='  ')
         print()
 
-def save_model(model,name) :
-    torch.save(model,name + '.pkl')
 
-class Dataset_mnist(Dataset):
-    def __init__(self,images,labels):
-        self.images=torch.FloatTensor(images[:,np.newaxis,:,:])
+def save_model(model , name) :
+    torch.save(model , name + '.pkl')
+
+
+class Dataset_mnist(Dataset) :
+    def __init__(self , images , labels) :
+        self.images = torch.FloatTensor(images[: , np.newaxis , : , :])
         # print("============================================")
         # print("iamge size:",self.images.shape)
-        self.labels=torch.LongTensor(labels)
-    def __getitem__(self,idx):
-        image=self.images[idx]
-        label=self.labels[idx]
-        return image,label
-    def __len__(self):
+        self.labels = torch.LongTensor(labels)
+
+    def __getitem__(self , idx) :
+        image = self.images[idx]
+        label = self.labels[idx]
+        return image , label
+
+    def __len__(self) :
         return len(self.labels)
-#==============================
+
+
+# ==============================
 train_images = load_train_images()
 train_labels = load_train_labels()
 # test_images = load_test_images()
 # test_labels = load_test_labels()
 
-data_dir=''
-data_dir_test=''
+data_dir = ''
+data_dir_test = ''
 
-train_labels_noise=generate_noise_label(train_labels[:-1000],0.5,True)
-train_mnist=Dataset_mnist(train_images[:-1000],train_labels_noise)
-valid_mnist=Dataset_mnist(train_images[-1000:],train_labels[-1000:])
-#=========================
-train_loader=DataLoader(train_mnist,batch_size=bs,shuffle=True,num_workers=4)
-valid_loader=DataLoader(valid_mnist,batch_size=bs,shuffle=True,num_workers=4)
+train_labels_noise = generate_noise_label(train_labels[:-1000] , 0.5 , True)
+train_mnist = Dataset_mnist(train_images[:-1000] , train_labels_noise)
+valid_mnist = Dataset_mnist(train_images[-1000 :] , train_labels[-1000 :])
+# =========================
+train_loader = DataLoader(train_mnist , batch_size=bs , shuffle=True , num_workers=4)
+valid_loader = DataLoader(valid_mnist , batch_size=bs , shuffle=True , num_workers=4)
 
-
-model=oral_net()
+model = oral_net()
 
 model = model.to(device)
 print("=============================================")
 
 print(model)
-optimizer=torch.optim.Adam(model.parameters(),lr=learning_rate)
-
+optimizer = torch.optim.Adam(model.parameters() , lr=learning_rate)
 
 start_time = time.time()
-valid_acc=0.0
-valid_acc_t=0.0
-ite=0
+valid_acc = 0.0
+valid_acc_t = 0.0
+ite = 0
 for epoch in range(num_epochs) :
     # print("++++++++++++bs:",batch_size)
     model = model.train()  # model.train()
@@ -144,7 +151,7 @@ for epoch in range(num_epochs) :
         labels = Variable(labels.to(device))
         # print("labels",labels)
         ### FORWARD AND BACK PROP
-        logits  = model(inputs)
+        logits = model(inputs)
         # print("logits and probas",logits.size(),probas.size())
         cost = F.cross_entropy(logits , labels)
         # print("labels and cost",labels.size(),cost)
@@ -155,8 +162,7 @@ for epoch in range(num_epochs) :
 
         ### UPDATE MODEL PARAMETERS
         optimizer.step()
-        #scheduler.step()
-
+        # scheduler.step()
 
         ### LOGGING
         if not batch_idx % 20 :
@@ -167,12 +173,12 @@ for epoch in range(num_epochs) :
     # model = model.eval()
     model.eval()
     with torch.set_grad_enabled(False) :  # save memory during inference
-        valid_acc_t=compute_accuracy(model , num_classes=5 , batch_s=bs , data_loader=valid_loader)
-        if valid_acc<valid_acc_t:
-            save_model(model,name='sys05')
-            valid_acc=valid_acc_t
-            ite+=1
-            print('model have been saved %2d times !',(ite))
+        valid_acc_t = compute_accuracy(model , num_classes=5 , batch_s=bs , data_loader=valid_loader)
+        if valid_acc < valid_acc_t :
+            save_model(model , name='sys05_1')
+            valid_acc = valid_acc_t
+            ite += 1
+            print('model have been saved %2d times !' , (ite))
 
         print('Epoch: %03d/%03d | Train: %.3f%% | Valid: %.3f%%' % (
             epoch + 1 , num_epochs ,
