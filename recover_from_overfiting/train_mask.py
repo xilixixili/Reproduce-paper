@@ -55,40 +55,10 @@ parser.add_argument('--outf' , default='./model' , help='folder to output images
 parser.add_argument('--net' , default='./model/VGG16bn.pth' , help="path to net (to continue training)")  # 恢复训练时的模型路径
 args = parser.parse_args()
 
-# class Net(nn.Module) :
-#     def __init__(self , features , num_classes=2 , init_weights=False , is_bias=True) :
-#         super(Net , self).__init__()
-#         self.features = net.features
-#         # self.pooling=nn.AvgPool2d() #kernal size ???
-#         # self.classifier=nn.Linear(128,num_classes,bias=is_bias)
-#         self.classifier = net.classifier
-#
-#         if init_weights :
-#             self._initialize_weights()
-#
-#     def forward(self , x) :
-#         x = self.features(x)
-#         x = x.view(x.size(0) , -1)
-#         # x=self.pooling(x)
-#         x = self.classifier(x)
-#         return x
-#
-#     def _initialize_weights(self) :
-#         for m in self.modules() :
-#             print('m' , m)
-#             if isinstance(m , nn.Conv2d) :
-#                 # m.weight = nn.Parameter(torch.Tensor(np.ones([m.out_channels , m.in_channels , m.kernel_size[0] , m.kernel_size[1]])))
-#                 m.weight.data = torch.Tensor(
-#                     np.ones([m.out_channels , m.in_channels , m.kernel_size[0] , m.kernel_size[1]]))
-#                 print(m)
-#             elif isinstance(m , nn.BatchNorm2d) :
-#                 m.weight.data.fill_(1)
-#                 m.bias.data.zero_()
-#             elif isinstance(m , nn.Linear) :
-#                 m.weight = nn.Parameter(torch.Tensor(np.ones([m.out_features , m.in_features])))
 
 
 # 准备数据集并预处理
+
 
 d_t = transforms.Compose([
     transforms.RandomResizedCrop(224) ,
@@ -102,11 +72,15 @@ d_t_val = transforms.Compose([
     transforms.ToTensor() ,
     transforms.Normalize([0.485 , 0.456 , 0.406] , [0.229 , 0.224 , 0.225])
 ])
+
 data_dir = '/media/liang/新加卷/disambigular/data/mask/mask/'
 image_datasets = torchvision.datasets.ImageFolder(data_dir , d_t)
 
 train_loader = torch.utils.data.DataLoader(image_datasets , batch_size=BATCH_SIZE , shuffle=True , num_workers=2)
 # 定义损失函数和优化方式
+
+
+
 net = torch.load("mnet.pkl")  # mask
 net = net.to(device)
 # criterion = nn.CrossEntropyLoss()  #损失函数为交叉熵，多用于多分类问题
@@ -133,7 +107,8 @@ net_dict_keys = net_original_dict.keys()
 def set_param_requires_grad(model) :
     for param in model.parameters() :
         param.requires_grad = True
-
+def save_model_dict(model , name) :
+    torch.save(model.dict() , name + 'pth')
 
 def save_param(model , name) :
     torch.save(model , name + '.pkl')
@@ -238,7 +213,12 @@ if __name__ == "__main__" :
             total += labels.size(0)
             correct += predicted.eq(labels.data).cpu().sum()
         print('[epoch:%d, iter:%d] Loss: %.03f | Acc: %.3f%% ' % (
-            epoch + 1 , (i + 1 + epoch * length) , sum_loss / (i + 1) , 100. * correct / total))
+        epoch + 1 , (i + 1 + epoch * length) , sum_loss / (i + 1) , 100. * correct / total))
         print(
             '*******************************************************pirnt mask_dict after backward ***************************************************************')
         print(new)
+
+
+
+
+

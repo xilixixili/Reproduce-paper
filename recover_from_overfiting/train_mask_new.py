@@ -1,5 +1,6 @@
 """
 Recover from Overfitting to Label Noise : A Weight Pruning Perspective
+train_mask
 """
 import os
 import time
@@ -9,18 +10,17 @@ from torch.autograd import Variable
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+import copy
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from torchvision import datasets
 from torchvision import transforms
-
+from ge_nosie_data import load_train_images , load_train_labels
 from Net import oral_net
-from ge_nosie_data import load_train_images , load_train_labels , generate_noise_label
-
+import re
 torch.backends.cudnn.enabled = False
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '2'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
 # Device
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -33,13 +33,10 @@ bs = 128  # batch_size
 pool_nb = 5  #####
 test_bs = 32
 
-# 训练集文件
-train_images_idx3_ubyte_file = './data/mnist/train-images-idx3-ubyte'
-# 训练集标签文件
-train_labels_idx1_ubyte_file = './data/mnist/train-labels-idx1-ubyte'
-
 # Architecture
 num_classes = 10
+data_dir='./data/mnist/'
+dict_dir = 'flip045.pth'
 
 
 def compute_accuracy(model , batch_s , num_classes , data_loader) :  # probas：sofamax输出向量
@@ -97,7 +94,7 @@ def save_model(model , name) :
 
 
 def save_model_dict(model , name) :
-    torch.save(model.dict() , name + 'pth')
+    torch.save(model.dict() , name + '.pth')
 
 
 class Dataset_mnist(Dataset) :
@@ -117,24 +114,27 @@ class Dataset_mnist(Dataset) :
 
 
 # ==============================
-train_images = load_train_images(idx_ubyte_file=train_images_idx3_ubyte_file)
-train_labels = load_train_labels(idx_ubyte_file=train_labels_idx1_ubyte_file)
-# test_images = load_test_images()
-# test_labels = load_test_labels()
+train_images = load_train_images(data_dir+'train-images-idx3-ubyte')
+train_labels = load_train_labels(data_dir+'train-labels-idx1-ubyte')
+test_images = load_train_images(data_dir+'t10k-images-idx3-ubyte')
+test_labels = load_train_labels(data_dir+'t10k-labels-idx1-ubyte')
 
-data_dir = ''
-data_dir_test = ''
-
-train_labels_noise = generate_noise_label(train_labels[:-1000] , 0.5 , True)
-train_mnist = Dataset_mnist(train_images[:-1000] , train_labels_noise)
-valid_mnist = Dataset_mnist(train_images[-1000 :] , train_labels[-1000 :])
+# train_labels_noise = generate_noise_label(train_labels[-1000:] , 0.5 , False)
+train_mnist = Dataset_mnist(train_images[-1000 :] , train_labels[-1000 :])
+valid_mnist = Dataset_mnist(test_images[-1000 :] , test_labels[-1000 :])
 # =========================
 train_loader = DataLoader(train_mnist , batch_size=bs , shuffle=True , num_workers=4)
 valid_loader = DataLoader(valid_mnist , batch_size=bs , shuffle=True , num_workers=4)
+# 准备网络
+model_origin = oral_net()
 
-model = oral_net()
+model_origin.load_state_dict(torch.load(dict_dir))
+model_origin=model_origin.to(device)
 
-model = model.to(device)
+model = oral_net(init_weights=True)
+model=model.to(device)
+model_origin_dict = copy.deepcopy(model_origin.state_dict())  # 保持每次 M*W 的时候 Weight 是原始训练好的
+# model = model.to(device)
 print("=============================================")
 
 print(model)
@@ -156,9 +156,28 @@ for epoch in range(num_epochs) :
 
         inputs = Variable(inputs.to(device))
         # print('====shape :',inputs.shape)
-
+        # print('\tdtype of input:',inputs.dtype)
         labels = Variable(labels.to(device))
         # print("labels",labels)
+        # 执行 step 函数的功能
+        model_dict =copy.deepcopy( model.state_dict())
+        model_dict_=copy.deepcopy(model.state_dict())
+        for key in model_dict :
+            # model_dict[key]=model_dict[key].type(torch.DoubleTensor)
+            # model_origin_dict[key] = model_origin_dict[key].type(torch.DoubleTensor)
+            # print('model dict:',model_dict[key].cuda())
+            # print(model_dict[key].dtype)
+            # print('origin dict:',model_origin_dict[key].cuda())
+            # print(model_origin_dict[key].dtype)
+
+            # print('.ge :',model_dict[key].ge(0.5).dtype,'\t',model_dict[key].ge(0.5).to(device).device)
+            temp=torch.mul(model_dict[key].ge(0.5).to(device).type(torch.DoubleTensor), model_origin_dict[key].type(torch.DoubleTensor))
+            # print('temp:',temp.dtype,'\t',temp.device)
+            model_dict[key] = temp
+            if re.search('mean',key) or re.search('_var',key):
+                model_dict[key]=model_origin_dict[key]
+        model.load_state_dict(model_dict)
+
         ### FORWARD AND BACK PROP
         logits = model(inputs)
         # print("logits and probas",logits.size(),probas.size())
@@ -166,13 +185,30 @@ for epoch in range(num_epochs) :
         # print("labels and cost",labels.size(),cost)
 
         optimizer.zero_grad()
-
+        model.load_state_dict(model_dict_)
         cost.backward()
 
         ### UPDATE MODEL PARAMETERS
         optimizer.step()
         # scheduler.step()
 
+        # 对Mask 中的值 进行 m=max(0,min(1,m))
+        for m in model.modules() :
+            if isinstance(m , nn.Conv2d) :
+                # print(np.nonzero(m.weight.data))
+                # print(m,m.weight.data)
+                m.weight.data = torch.clamp(m.weight.data , min=0 , max=1).to(device)
+                # print(np.nonzero(m.weight.data))
+                m.bias.data.fill_(1).to(device)
+                # print(m,m.weight.data)
+            elif isinstance(m , nn.BatchNorm2d) :  # running mean & running variance???
+                continue
+                # m.weight.data.fill_(1).to(device)
+                # m.bias.data.fill_(1).to(device)
+            elif isinstance(m , nn.Linear) :
+                m.weight.data = torch.clamp(m.weight.data , min=0 , max=1).to(device)
+                m.bias.data.fill_(1).to(device)
+        model_dict_=copy.deepcopy(model.state_dict())
         ### LOGGING
         if not batch_idx % 20 :
             print('\n\nEpoch: %03d/%03d | Batch %03d/%03d | Cost: %.4f'
@@ -181,19 +217,21 @@ for epoch in range(num_epochs) :
 
     # model = model.eval()
     model.eval()
+    model.load_state_dict(model_dict)
     with torch.set_grad_enabled(False) :  # save memory during inference
         valid_acc_t = compute_accuracy(model , num_classes=5 , batch_s=bs , data_loader=valid_loader)
         if valid_acc < valid_acc_t :
-            save_model_dict(model , name='sys05_1')
+            save_model(model , name='flip045a')
             valid_acc = valid_acc_t
             ite += 1
-            print('model have been saved %2d times !' , (ite))
+            print('model have been saved %03d times !' % (ite))
 
         print('Epoch: %03d/%03d | Train: %.3f%% | Valid: %.3f%%' % (
             epoch + 1 , num_epochs ,
             compute_accuracy(model , num_classes=5 , batch_s=bs , data_loader=train_loader) ,
-            valid_acc))
-
+            valid_acc),end='\t')
+        print(' | Origin: %.3f%% ' % (compute_accuracy(model_origin , num_classes=5 , batch_s=bs , data_loader=valid_loader) ))
     print('Time elapsed: %.2f min' % ((time.time() - start_time) / 60))
+    model.load_state_dict(model_dict_)
 
 print('Total Training Time: %.2f min' % ((time.time() - start_time) / 60))

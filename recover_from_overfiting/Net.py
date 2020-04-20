@@ -29,11 +29,11 @@ class Net(nn.Module) :
             if isinstance(m , nn.Conv2d) :
                 # m.weight = nn.Parameter(torch.Tensor(np.ones([m.out_channels , m.in_channels , m.kernel_size[0] , m.kernel_size[1]])))
                 # m.weight.data = torch.Tensor(np.ones([m.out_channels , m.in_channels , m.kernel_size[0] , m.kernel_size[1]]))
-                m.weight.data.fill_(1)
+                m.weight.data.fill_(1.0)
             elif isinstance(m , nn.BatchNorm2d) :
-                m.weight.data.fill_(1)
+                m.weight.data.fill_(1.0)
                 # m.bias.data.zero_()
-                m.bias.data.fill_(1)
+                m.bias.data.fill_(1.0)
             elif isinstance(m , nn.Linear) :
                 m.weight = nn.Parameter(torch.Tensor(np.ones([m.out_features , m.in_features])))
 

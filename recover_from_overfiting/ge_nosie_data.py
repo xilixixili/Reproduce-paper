@@ -9,11 +9,6 @@ import matplotlib.pyplot as plt
 # 训练集标签文件
 # train_labels_idx1_ubyte_file = 'MNIST/train-labels-idx1-ubyte'
 
-# 训练集文件
-train_images_idx3_ubyte_file = './data/mnist/train-images-idx3-ubyte'
-# 训练集标签文件
-train_labels_idx1_ubyte_file = './data/mnist/train-labels-idx1-ubyte'
-
 
 def decode_idx3_ubyte(idx3_ubyte_file) :
     """
@@ -81,7 +76,7 @@ def decode_idx1_ubyte(idx1_ubyte_file) :
     return labels
 
 
-def load_train_images(idx_ubyte_file=train_images_idx3_ubyte_file) :
+def load_train_images(idx_ubyte_file) :
     """
     TRAINING SET IMAGE FILE (train-images-idx3-ubyte):
     [offset] [type]          [value]          [description]
@@ -101,7 +96,7 @@ def load_train_images(idx_ubyte_file=train_images_idx3_ubyte_file) :
     return decode_idx3_ubyte(idx_ubyte_file)
 
 
-def load_train_labels(idx_ubyte_file=train_labels_idx1_ubyte_file) :
+def load_train_labels(idx_ubyte_file) :
     """
     TRAINING SET LABEL FILE (train-labels-idx1-ubyte):
     [offset] [type]          [value]          [description]
@@ -176,7 +171,7 @@ def generate_noise_label(labels , noise_rate , is_avg=True) :
         return generate_one_noise(labels , noise_rate , class_num , sum_per_class)
 
 
-train_images = load_train_images()
-train_labels = load_train_labels()
+# train_images = load_train_images()
+# train_labels = load_train_labels()
 # test_images = load_test_images()
 # test_labels = load_test_labels()
