@@ -18,9 +18,11 @@ from torchvision import transforms
 from ge_nosie_data import load_train_images , load_train_labels
 from Net import oral_net
 import re
+from show_network import show_network
+from Compute_acc import compute_accuracy,compute_mis
 torch.backends.cudnn.enabled = False
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '3'
 
 # Device
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -36,57 +38,9 @@ test_bs = 32
 # Architecture
 num_classes = 10
 data_dir='./data/mnist/'
-dict_dir = 'flip045.pth'
+dict_dir = 'flip045.pth' #sys05.pth
+model_name='flip045_M_lr02.pth'
 
-
-def compute_accuracy(model , batch_s , num_classes , data_loader) :  # probas：sofamax输出向量
-    correct_pred , num_examples = 0 , 0
-    for features , targets in data_loader :
-        # print(type(targets))
-        features = features.to(device)
-        targets = targets.to(device)
-        logits = model(features)
-        probas = F.softmax(logits , dim=1)
-        _ , predicted = torch.max(probas , 1)  # 返回最大值及索引
-        num_examples += targets.size(0)
-        correct_pred += (predicted == targets).sum()
-    return correct_pred.float() / num_examples * 100
-
-
-def compute_mis(model , data_loader) :
-    mis = np.array([[0 , 0 , 0 , 0 , 0] , [0 , 0 , 0 , 0 , 0] , [0 , 0 , 0 , 0 , 0] , [0 , 0 , 0 , 0 , 0] ,
-                    [0 , 0 , 0 , 0 , 0]])  # [target][predicted]
-    # mis={'one2one':0,'one2two':0,'one2three'}
-
-    correct_pred , num_examples = 0 , 0
-    for features , targets in data_loader :
-        print(targets)
-        features = features.to(device)
-        targets = targets.to(device)
-        logits = model(features)
-        probas = F.softmax(logits , dim=1)
-        _ , predicted = torch.max(probas , 1)  # 返回最大值及索引
-
-        predicted = predicted.int()
-        targets = targets.int()
-        # print('=====',targets[0].item())
-        lens = len(targets)
-        for i in range(lens) :
-            # print('i:',i,'targets[i].item()',targets[i].item(),'predicted[i].item()',predicted[i].item())
-            mis[targets[i].item()][predicted[i].item()] += 1
-        num_examples += targets.size(0)
-        correct_pred += (predicted == targets).sum()
-
-    print('Total average acc: %.2f%%' % (correct_pred.float() / num_examples * 100))
-    row , col = mis.shape
-    sum_row = np.sum(mis , axis=1)
-    print(sum_row)
-    print('===============================')
-    print(mis)
-    for ro in range(row) :
-        for co in range(col) :
-            print(ro , 'To' , co , ':' , '%5.2f%%' % (mis[ro][co] / sum_row[ro] * 100) , end='  ')
-        print()
 
 
 def save_model(model , name) :
@@ -134,6 +88,8 @@ model_origin=model_origin.to(device)
 model = oral_net(init_weights=True)
 model=model.to(device)
 model_origin_dict = copy.deepcopy(model_origin.state_dict())  # 保持每次 M*W 的时候 Weight 是原始训练好的
+for m in model_origin_dict:
+    print(m)
 # model = model.to(device)
 print("=============================================")
 
@@ -144,10 +100,13 @@ start_time = time.time()
 valid_acc = 0.0
 valid_acc_t = 0.0
 ite = 0
+
 for epoch in range(num_epochs) :
     # print("++++++++++++bs:",batch_size)
     model = model.train()  # model.train()
     batch_idx = 0
+    total = 0.0
+    correct =0.0
     # print('type of train_loader',type(train_loader))
     for inputs , labels in train_loader :
         batch_idx += 1
@@ -161,31 +120,37 @@ for epoch in range(num_epochs) :
         # print("labels",labels)
         # 执行 step 函数的功能
         model_dict =copy.deepcopy( model.state_dict())
-        model_dict_=copy.deepcopy(model.state_dict())
-        for key in model_dict :
-            # model_dict[key]=model_dict[key].type(torch.DoubleTensor)
+        model_dict_MW=copy.deepcopy(model.state_dict())
+        for key in model_dict_MW :
+            # model_dict_MW[key]=model_dict_MW[key].type(torch.DoubleTensor)
             # model_origin_dict[key] = model_origin_dict[key].type(torch.DoubleTensor)
-            # print('model dict:',model_dict[key].cuda())
-            # print(model_dict[key].dtype)
+            # print('model_dict_MW:',model_dict_MW[key].cuda())
+            # print(model_dict_MW[key].dtype)
             # print('origin dict:',model_origin_dict[key].cuda())
             # print(model_origin_dict[key].dtype)
 
-            # print('.ge :',model_dict[key].ge(0.5).dtype,'\t',model_dict[key].ge(0.5).to(device).device)
-            temp=torch.mul(model_dict[key].ge(0.5).to(device).type(torch.DoubleTensor), model_origin_dict[key].type(torch.DoubleTensor))
+            #print(key,model_dict_MW[key].ge(0.5))
+            #print('.ge :',model_dict_MW[key].ge(0.5).dtype,'\t',model_dict_MW[key].ge(0.5).to(device).device)
+            temp=torch.mul(model_dict_MW[key].ge(0.5).to(device).type(torch.DoubleTensor), model_origin_dict[key].type(torch.DoubleTensor))
             # print('temp:',temp.dtype,'\t',temp.device)
-            model_dict[key] = temp
+            model_dict_MW[key] = temp
+            if re.search('classifer',key):
+                model_dict_MW[key]=model_origin_dict[key]
             if re.search('mean',key) or re.search('_var',key):
-                model_dict[key]=model_origin_dict[key]
-        model.load_state_dict(model_dict)
+
+                model_dict_MW[key]=model_origin_dict[key]
+                #print(key,model_origin_dict[key],model_dict_MW[key])
+        model.load_state_dict(model_dict_MW)
 
         ### FORWARD AND BACK PROP
         logits = model(inputs)
         # print("logits and probas",logits.size(),probas.size())
+        #print(logits)
         cost = F.cross_entropy(logits , labels)
-        # print("labels and cost",labels.size(),cost)
+#        print("labels and cost",cost)
 
         optimizer.zero_grad()
-        model.load_state_dict(model_dict_)
+        model.load_state_dict(model_dict)
         cost.backward()
 
         ### UPDATE MODEL PARAMETERS
@@ -196,42 +161,55 @@ for epoch in range(num_epochs) :
         for m in model.modules() :
             if isinstance(m , nn.Conv2d) :
                 # print(np.nonzero(m.weight.data))
-                # print(m,m.weight.data)
+                #print(m,m.bias.data)
                 m.weight.data = torch.clamp(m.weight.data , min=0 , max=1).to(device)
                 # print(np.nonzero(m.weight.data))
                 m.bias.data.fill_(1).to(device)
-                # print(m,m.weight.data)
+                #print(m,m.weight.data)
             elif isinstance(m , nn.BatchNorm2d) :  # running mean & running variance???
                 continue
                 # m.weight.data.fill_(1).to(device)
                 # m.bias.data.fill_(1).to(device)
             elif isinstance(m , nn.Linear) :
+                print(m.weight.data)
                 m.weight.data = torch.clamp(m.weight.data , min=0 , max=1).to(device)
                 m.bias.data.fill_(1).to(device)
-        model_dict_=copy.deepcopy(model.state_dict())
+                print(m.weight.data)
+        model_dict=copy.deepcopy(model.state_dict())
         ### LOGGING
         if not batch_idx % 20 :
             print('\n\nEpoch: %03d/%03d | Batch %03d/%03d | Cost: %.4f'
                   % (epoch + 1 , num_epochs , batch_idx ,
                      len(train_loader) , cost))
+        _, predicted = torch.max(logits.data, 1)
+        total += labels.size(0)
+        correct += predicted.eq(labels.data).cpu().sum()
+        #print(predicted,labels.data)
+#    print('c',correct,total)
 
     # model = model.eval()
     model.eval()
-    model.load_state_dict(model_dict)
+    model_origin.eval()
+    model.load_state_dict(model_dict_MW)
+    #for m in model.modules() :
+           # if isinstance(m , nn.Conv2d) :
+                # print(np.nonzero(m.weight.data))
+              #  print(m,m.weight.data)
     with torch.set_grad_enabled(False) :  # save memory during inference
         valid_acc_t = compute_accuracy(model , num_classes=5 , batch_s=bs , data_loader=valid_loader)
         if valid_acc < valid_acc_t :
-            save_model(model , name='flip045a')
+            save_model(model , name=model_name)
             valid_acc = valid_acc_t
             ite += 1
             print('model have been saved %03d times !' % (ite))
 
         print('Epoch: %03d/%03d | Train: %.3f%% | Valid: %.3f%%' % (
             epoch + 1 , num_epochs ,
-            compute_accuracy(model , num_classes=5 , batch_s=bs , data_loader=train_loader) ,
+            compute_accuracy(model , num_classes=10 , batch_s=bs , data_loader=train_loader) ,
             valid_acc),end='\t')
         print(' | Origin: %.3f%% ' % (compute_accuracy(model_origin , num_classes=5 , batch_s=bs , data_loader=valid_loader) ))
+        compute_mis(model,data_loader=train_loader)
     print('Time elapsed: %.2f min' % ((time.time() - start_time) / 60))
-    model.load_state_dict(model_dict_)
+    model.load_state_dict(model_dict)
 
 print('Total Training Time: %.2f min' % ((time.time() - start_time) / 60))
